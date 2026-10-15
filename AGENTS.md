@@ -18,6 +18,7 @@ Express 5 + EJS + SQLite (`better-sqlite3`) + `ws`. Mobile-first PWA (`max-w-sm`
 - Invites famille + listes : 30 min, usage unique, générées à la demande uniquement (`store.create*Invite` / `peek*` / `consume*`). `lib/urls.js` `baseUrl(req)` (`SITE_URL` env, sinon hôte de la requête, proxy-aware).
 - Droits : `can_edit` sur `family_members` + `list_members` (`store.canEditList`, créateur toujours éditeur). Toggle via `POST /famille/rights`, propagé aux listes du propriétaire. Mutations API → 403 si lecture seule.
 - `middleware/auth.js` — `requireAuth`, `requirePseudo` (no pseudo → `/choose-pseudo`).
+- `lib/logger.js` — instance `logxpert` partagée (console horodatée + fichiers `logs/`, niveau via `LOG_LEVEL`). L'utiliser au lieu de `console.*` côté serveur.
 - `store.js` — all SQL. `db.js` — creates `db/data.db` + tables (`users`, `lists`, `items`, `sessions`, `list_members`, `pseudo_changes`, `family_members`, `family_invites`).
 
 ## Version system (PWA update)

@@ -6,6 +6,7 @@ const session = require('express-session');
 const { SQLiteStore } = require('./db');
 const store = require('./store');
 const ws = require('./ws');
+const log = require('./lib/logger');
 
 const app = express();
 const server = http.createServer(app);
@@ -132,10 +133,18 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  log.error(err);
   res.status(500).render('500');
 });
 
+process.on('uncaughtException', (err) => {
+  log.error('uncaughtException', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  log.error('unhandledRejection', reason);
+});
+
 server.listen(port, () => {
-  console.log('Server running at http://localhost:' + port);
+  log.info('Server running at http://localhost:' + port);
 });
