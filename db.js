@@ -31,6 +31,7 @@ db.exec(`
     checked INTEGER DEFAULT 0,
     added_by TEXT DEFAULT 'Anonyme',
     created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT,
     FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE
   );
 `);
@@ -71,6 +72,7 @@ db.exec(`
     store TEXT,
     manual INTEGER DEFAULT 1,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    created_at TEXT,
     PRIMARY KEY (user_email, name)
   )
 `);
@@ -79,6 +81,12 @@ db.exec(`
 try { db.exec("ALTER TABLE article_info ADD COLUMN manual INTEGER"); } catch {}
 try { db.exec("UPDATE article_info SET manual = 1 WHERE price IS NOT NULL"); } catch {}
 try { db.exec("DELETE FROM article_info WHERE COALESCE(manual, 0) = 0"); } catch {}
+// Tri par date de création : colonne nue (pas de DEFAULT non-constant, cf. gotcha SQLite) + backfill
+try { db.exec("ALTER TABLE article_info ADD COLUMN created_at TEXT"); } catch {}
+try { db.exec("UPDATE article_info SET created_at = COALESCE(updated_at, CURRENT_TIMESTAMP) WHERE created_at IS NULL"); } catch {}
+// Tri des items par modification : même pattern, backfill sur created_at
+try { db.exec("ALTER TABLE items ADD COLUMN updated_at TEXT"); } catch {}
+try { db.exec("UPDATE items SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL"); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS family_members (

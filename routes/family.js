@@ -31,6 +31,12 @@ router.get('/famille', requireAuth, requirePseudo, (req, res) => {
 
 router.post('/famille/add', requireAuth, requirePseudo, (req, res) => {
   const email = (req.body.email || '').trim();
+  const inFam = store.getFamiliesOf(req.session.userEmail);
+  if (inFam.length) {
+    const msg = 'Tu fais partie de la famille de ' + (inFam[0].ownerPseudo || inFam[0].ownerEmail) + ' — quitte-la pour créer la tienne';
+    if (wantsJson(req)) return res.status(400).json({ error: msg });
+    return renderFamille(req, res, { error: msg });
+  }
   const r = store.addFamilyMember(req.session.userEmail, email);
   const errors = {
     empty: 'Entre un email',
@@ -72,6 +78,12 @@ router.post('/famille/rights', requireAuth, requirePseudo, (req, res) => {
 
 // Génère un lien à usage unique (30 min) — rien n'est pré-généré avant cet appel
 router.post('/famille/invite', requireAuth, requirePseudo, (req, res) => {
+  const inFam = store.getFamiliesOf(req.session.userEmail);
+  if (inFam.length) {
+    const msg = 'Tu fais partie de la famille de ' + (inFam[0].ownerPseudo || inFam[0].ownerEmail) + ' — quitte-la pour inviter dans ta propre famille';
+    if (wantsJson(req)) return res.status(400).json({ error: msg });
+    return renderFamille(req, res, { error: msg });
+  }
   const token = store.createFamilyInvite(req.session.userEmail);
   const url = baseUrl(req) + '/famille/rejoindre/' + token;
   if (wantsJson(req)) return res.json({ ok: true, url });
@@ -95,8 +107,19 @@ router.get('/famille/rejoindre/:token', (req, res) => {
     return res.redirect('/choose-pseudo');
   }
   if (owner !== req.session.userEmail) {
-    store.consumeFamilyInvite(req.params.token);
-    store.addFamilyMember(owner, req.session.userEmail);
+    // Famille exclusive : soit on a la sienne (avec des membres), soit on est dans une seule famille
+    const mine = store.getFamilyMembers(req.session.userEmail);
+    if (mine.length) {
+      return renderFamille(req, res, { error: 'Tu as déjà ta propre famille — retire tes membres avant d’en rejoindre une autre' });
+    }
+    const inFam = store.getFamiliesOf(req.session.userEmail);
+    if (!inFam.some(f => f.ownerEmail === owner)) {
+      if (inFam.length) {
+        return renderFamille(req, res, { error: 'Tu fais déjà partie de la famille de ' + (inFam[0].ownerPseudo || inFam[0].ownerEmail) + ' — quitte-la avant d’en rejoindre une autre' });
+      }
+      store.consumeFamilyInvite(req.params.token);
+      store.addFamilyMember(owner, req.session.userEmail);
+    }
   }
   res.redirect('/famille');
 });

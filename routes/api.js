@@ -14,14 +14,15 @@ function requireCanEdit(req, res, next) {
 }
 
 router.get('/list/:id', requireAuth, (req, res) => {
-  const list = store.getList(req.params.id);
+  const sort = req.query.sort === 'updated' ? 'updated' : 'created';
+  const list = store.getList(req.params.id, sort);
   if (!list) return res.status(404).json({ error: 'Liste introuvable' });
   res.json(list);
 });
 
 // Mes listes (pour le refresh temps réel de l'accueil)
 router.get('/lists', requireAuth, (req, res) => {
-  res.json(store.getListsByUser(req.session.userEmail));
+  res.json(store.getListsByUser(req.session.userEmail, req.query.sort === 'created' ? 'created' : 'updated', req.query.dir === 'asc' ? 'asc' : 'desc'));
 });
 
 // Recherche dans mon catalogue d'articles (autocomplete, min 2 lettres)

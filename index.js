@@ -25,6 +25,12 @@ app.get('/api/version', (req, res) => {
   res.json({ version: APP_VERSION });
 });
 
+// Journal des nouveautés (sans cache, sans auth : lu par la popup de mise à jour)
+app.get('/api/changelog', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json(require('./changelog.json'));
+});
+
 // Manifest dynamique : la version change a chaque release => Chrome met a jour le WebAPK installe
 app.get('/manifest.json', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

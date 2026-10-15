@@ -2,9 +2,10 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title><%= list.name %> - ShopList</title>
   <link rel="stylesheet" href="/css/main.css">
+  <style>*,*::before,*::after{box-sizing:border-box;}</style>
   <link rel="manifest" href="/manifest.json?v=<%= locals.version %>">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <meta name="mobile-web-app-capable" content="yes">
@@ -49,6 +50,18 @@
       <div class="rounded-full" style="height:8px;background:#e5e7eb;">
         <div id="progressBar" class="rounded-full transition-all" style="height:8px;width:<%= pct0 %>%;background:#3b82f6;"></div>
       </div>
+    </div>
+
+    <% var currentSort = locals.sort || 'created'; %>
+    <div class="flex gap-2 mb-4">
+      <a href="/list/<%= list.id %>"
+        class="flex-1 text-center text-xs font-medium py-2 rounded-xl transition-colors <%= currentSort === 'created' ? 'bg-blue-500 text-white' : 'bg-white text-gray-500 border border-gray-200' %>">
+        Tri : création
+      </a>
+      <a href="/list/<%= list.id %>?sort=updated"
+        class="flex-1 text-center text-xs font-medium py-2 rounded-xl transition-colors <%= currentSort === 'updated' ? 'bg-blue-500 text-white' : 'bg-white text-gray-500 border border-gray-200' %>">
+        Tri : modification
+      </a>
     </div>
 
     <% if (canEdit) { %>
@@ -115,7 +128,7 @@
     <% if (canEdit) { %>
     <div class="mt-4 text-center">
       <button id="clearCheckedBtn" onclick="clearChecked()" class="<%= list.items.some(i => i.checked) ? '' : 'hidden ' %>text-xs text-gray-400 hover:text-red-500 font-medium transition-colors">
-        Vider les articles sélectionnés
+        Supprimer les articles sélectionnées
       </button>
     </div>
     <% } %>
@@ -274,7 +287,7 @@
 
     async function refreshList() {
       if (window.__spaForget) window.__spaForget(window.location.pathname);
-      const res = await fetch('/api/list/' + listId);
+      const res = await fetch('/api/list/' + listId + window.location.search);
       const data = await res.json();
       renderItems(data.items);
       document.getElementById('updatedDate').textContent = 'Modifiée le ' + fmtDate(data.updated_at);

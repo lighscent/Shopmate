@@ -82,29 +82,42 @@ function touchList(listId) {
   run('UPDATE lists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', listId);
 }
 
-function hydrateItems(list) {
+function hydrateItems(list, sort) {
   if (!list) return null;
-  list.items = all('SELECT id, name, quantity, checked, added_by AS addedBy FROM items WHERE list_id = ? ORDER BY created_at ASC', list.id);
+  const order = sort === 'updated' ? 'updated_at DESC' : 'created_at ASC';
+  list.items = all(`SELECT id, name, quantity, checked, added_by AS addedBy FROM items WHERE list_id = ? ORDER BY ${order}`, list.id);
   list.items.forEach((item) => { item.checked = !!item.checked; });
   return list;
 }
 
-function createList(name, createdBy) {
+function createList(name, createdBy, shareWith) {
   const id = shortId();
   run('INSERT INTO lists (id, name, created_by, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', id, name, createdBy || null);
   if (createdBy) {
     addMember(id, createdBy);
-    for (const m of getFamilyMembers(createdBy)) addMember(id, m.email, m.canEdit);
+    if (shareWith === undefined) {
+      // legacy (vieux clients sans champ share) : auto-partage avec ma famille
+      for (const m of getFamilyMembers(createdBy)) addMember(id, m.email, m.canEdit);
+    } else if (shareWith === 'self') {
+      for (const m of getFamilyMembers(createdBy)) addMember(id, m.email, m.canEdit);
+    } else if (shareWith) {
+      // partage avec la famille d'un autre : owner + membres (droits de chacun conservés)
+      addMember(id, shareWith, 1);
+      for (const m of getFamilyMembers(shareWith)) { if (m.email !== createdBy) addMember(id, m.email, m.canEdit); }
+    }
+    // shareWith '' ou falsy : liste perso, créateur seul
   }
   return getList(id);
 }
 
-function getListsByUser(email) {
-  return all(`SELECT l.id, l.name, l.updated_at, l.created_by, COALESCE(MAX(lm.can_edit), 1) AS can_edit, (SELECT COUNT(*) FROM items WHERE list_id = l.id) AS item_count, (SELECT COUNT(*) FROM items WHERE list_id = l.id AND checked = 1) AS checked_count FROM lists l LEFT JOIN list_members lm ON lm.list_id = l.id WHERE l.created_by = ? OR lm.user_email = ? GROUP BY l.id ORDER BY l.updated_at DESC`, email, email);
+function getListsByUser(email, sort, dir) {
+  const col = sort === 'created' ? 'l.created_at' : 'l.updated_at';
+  const d = dir === 'asc' ? 'ASC' : 'DESC';
+  return all(`SELECT l.id, l.name, l.updated_at, l.created_by, COALESCE(MAX(lm.can_edit), 1) AS can_edit, (SELECT COUNT(*) FROM items WHERE list_id = l.id) AS item_count, (SELECT COUNT(*) FROM items WHERE list_id = l.id AND checked = 1) AS checked_count FROM lists l LEFT JOIN list_members lm ON lm.list_id = l.id WHERE l.created_by = ? OR lm.user_email = ? GROUP BY l.id ORDER BY ${col} ${d}`, email, email);
 }
 
-function getList(id) {
-  return hydrateItems(get('SELECT * FROM lists WHERE id = ?', id));
+function getList(id, sort) {
+  return hydrateItems(get('SELECT * FROM lists WHERE id = ?', id), sort);
 }
 
 function getListByShareToken(token) {
@@ -167,12 +180,12 @@ function addItem(listId, { name, quantity = 1, addedBy = 'Anonyme' }) {
   if (!get('SELECT id FROM lists WHERE id = ?', listId)) return null;
   const existing = get('SELECT id, quantity FROM items WHERE list_id = ? AND LOWER(name) = LOWER(?)', listId, name);
   if (existing) {
-    run('UPDATE items SET quantity = quantity + ? WHERE id = ?', quantity, existing.id);
+    run('UPDATE items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', quantity, existing.id);
     touchList(listId);
     return { id: existing.id, name, quantity: existing.quantity + quantity, checked: false, addedBy };
   }
   const id = uid();
-  run('INSERT INTO items (id, list_id, name, quantity, added_by) VALUES (?, ?, ?, ?, ?)', id, listId, name, quantity, addedBy);
+  run('INSERT INTO items (id, list_id, name, quantity, added_by, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)', id, listId, name, quantity, addedBy);
   touchList(listId);
   return { id, name, quantity, checked: false, addedBy };
 }
@@ -185,7 +198,7 @@ function changeItemQuantity(listId, itemId, delta) {
     touchList(listId);
     return { deleted: true };
   }
-  run('UPDATE items SET quantity = ? WHERE id = ?', item.quantity + delta, itemId);
+  run('UPDATE items SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', item.quantity + delta, itemId);
   touchList(listId);
   return toClientItem({ ...item, quantity: item.quantity + delta });
 }
@@ -193,7 +206,7 @@ function changeItemQuantity(listId, itemId, delta) {
 function toggleItem(listId, itemId) {
   const item = findItem(listId, itemId);
   if (!item) return null;
-  run('UPDATE items SET checked = ? WHERE id = ?', item.checked ? 0 : 1, itemId);
+  run('UPDATE items SET checked = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', item.checked ? 0 : 1, itemId);
   touchList(listId);
   return { id: item.id, name: item.name, checked: !item.checked, addedBy: item.added_by };
 }
@@ -232,7 +245,7 @@ function getRecentItems(email, limit = 15) {
 
 // ---- catalogue articles (100% manuel ; rien n'est alimenté depuis les listes) ----
 function getCatalog(email) {
-  return all(`SELECT display AS name, price FROM article_info WHERE user_email = ? ORDER BY updated_at DESC`, email);
+  return all('SELECT display AS name, price FROM article_info WHERE user_email = ? ORDER BY created_at DESC', email);
 }
 function searchCatalog(email, q) {
   const query = (q || '').trim().toLowerCase();
@@ -252,7 +265,7 @@ function addArticle(email, rawName, price) {
   if (p === undefined) return false;
   const key = display.toLowerCase();
   const existed = !!get('SELECT 1 AS ok FROM article_info WHERE user_email = ? AND name = ?', email, key);
-  run(`INSERT INTO article_info (user_email, name, display, price, manual, updated_at) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP) ON CONFLICT(user_email, name) DO UPDATE SET price = excluded.price, manual = 1, updated_at = CURRENT_TIMESTAMP`, email, key, display, p);
+  run(`INSERT INTO article_info (user_email, name, display, price, manual, updated_at, created_at) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(user_email, name) DO UPDATE SET price = excluded.price, manual = 1, updated_at = CURRENT_TIMESTAMP`, email, key, display, p);
   return { name: display, price: p, isNew: !existed };
 }
 function setArticleInfo(email, rawName, price) {

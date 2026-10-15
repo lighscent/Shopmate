@@ -2,26 +2,33 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ShopList</title>
   <link rel="stylesheet" href="/css/main.css">
+  <style>*,*::before,*::after{box-sizing:border-box;}</style>
   <link rel="manifest" href="/manifest.json?v=<%= locals.version %>">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="/icon.svg">
   <meta name="theme-color" content="#3b82f6">
+  <style>
+    #listsContainer { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    #listsContainer::-webkit-scrollbar { width: 6px; }
+    #listsContainer::-webkit-scrollbar-track { background: transparent; }
+    #listsContainer::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-dvh">
-  <div class="max-w-sm mx-auto px-4 py-6" style="padding-bottom:110px;">
-    <div class="flex items-center justify-between mb-6" style="position:sticky;top:0;z-index:30;background:#f9fafb;padding:12px 0;">
+<body class="bg-gray-50 min-h-dvh" style="height:100vh;height:100dvh;overflow:hidden;">
+  <div class="max-w-sm mx-auto px-4 py-6" style="padding-bottom:100px;display:flex;flex-direction:column;height:100%;overflow:hidden;">
+    <div class="flex items-center justify-between mb-6" style="position:sticky;top:0;z-index:30;background:#f9fafb;padding:12px 0;flex-shrink:0;">
       <div class="min-w-0">
         <h1 class="text-2xl font-bold text-gray-800">ShopList</h1>
         <p class="text-gray-400 text-sm truncate max-w-48">Bonjour, <%= user.pseudo %></p>
       </div>
     </div>
 
-    <form id="createForm" action="/lists" method="POST" class="flex gap-2 mb-6">
+    <form id="createForm" action="/lists" method="POST" class="flex gap-2 mb-6" style="flex-shrink:0;">
       <input type="text" id="createName" name="name" placeholder="Nouvelle liste... (ex: Courses)" required maxlength="60" value="<%= locals.warningName || '' %>"
         class="flex-1 min-w-0 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
       <button type="submit" id="createBtn" title="Créer la liste" aria-label="Créer la liste"
@@ -33,12 +40,24 @@
       </button>
     </form>
 
-    <div id="dupBanner" class="rounded-xl text-sm px-4 py-3 mb-6<%= (locals.warningName && locals.existingList) ? '' : ' hidden' %>" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;">
+    <div id="shareModal" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.4);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeShareModal()">
+      <div class="bg-white w-full" style="max-width:28rem;border-radius:20px 20px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));">
+        <p class="text-sm font-bold text-gray-800 mb-1 truncate">Créer « <span id="shareModalName"></span> »</p>
+        <p class="text-xs text-gray-400 mb-3">Liste personnelle ou partagée ?</p>
+        <div id="shareOptions" class="space-y-2"></div>
+        <button type="button" onclick="closeShareModal()"
+          class="w-full mt-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">
+          Annuler
+        </button>
+      </div>
+    </div>
+
+    <div id="dupBanner" class="rounded-xl text-sm px-4 py-3 mb-6<%= (locals.warningName && locals.existingList) ? '' : ' hidden' %>" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;flex-shrink:0;">
       Une liste nommée « <span id="dupName"><%= locals.warningName || '' %></span> » existe déjà.
       <a id="dupLink" href="<%= locals.existingList ? '/list/' + existingList.id : '#' %>" class="font-medium" style="text-decoration:underline;">Ouvrir la liste existante</a>
     </div>
 
-    <div id="emptyLists" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-6 text-center<%= lists.length === 0 ? '' : ' hidden' %>">
+    <div id="emptyLists" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-6 text-center<%= lists.length === 0 ? '' : ' hidden' %>" style="flex-shrink:0;">
       <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
       </svg>
@@ -46,13 +65,35 @@
       <p class="text-gray-400 text-xs">Utilise le champ ci-dessus pour commencer</p>
     </div>
 
-    <div class="mb-6<%= lists.length === 0 ? ' hidden' : '' %>" id="listsSection">
-      <h2 class="text-base font-semibold text-gray-700 mb-3" id="listsTitle">Mes listes (<span id="listsCount"><%= lists.length %></span>)</h2>
+    <div class="<%= lists.length === 0 ? 'hidden' : '' %>" id="listsSection" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;margin-bottom:12px;position:relative;" id="listsHeader">
+        <h2 class="text-base font-semibold text-gray-700" id="listsTitle" style="flex:1;min-width:0;">Mes listes (<span id="listsCount"><%= lists.length %></span>)</h2>
+        <button type="button" id="sortToggle" class="shrink-0 text-gray-400 hover:text-blue-500 transition-colors" style="padding:8px;" aria-label="Trier">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+          </svg>
+        </button>
+        <div id="sortMenu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.12);min-width:190px;max-height:240px;overflow-y:auto;padding:4px;">
+          <p style="font-size:11px;font-weight:600;color:#9ca3af;padding:8px 12px 4px;">Trier par</p>
+          <% var d = (typeof dir !== 'undefined' && dir === 'asc') ? 'asc' : 'desc'; %>
+          <a href="<%- sort !== 'created' ? (d === 'asc' ? '/' : '/?sort=updated&dir=asc') : '/?sort=updated&dir=desc' %>" title="<%= sort !== 'created' ? (d === 'asc' ? 'Le plus ancien d\u2019abord — toucher pour inverser' : 'Le plus récent d\u2019abord — toucher pour inverser') : 'Le plus récent d\u2019abord' %>" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;padding:10px 12px;border-radius:8px;text-decoration:none;<%= sort !== 'created' ? 'background:#dbeafe;color:#1d4ed8;' : 'color:#374151;' %>"><span style="flex:1;">Modification</span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="<%= (sort !== 'created' ? d : 'desc') === 'asc' ? 'M12 19V5M5 12l7-7 7 7' : 'M12 5v14M5 12l7 7 7-7' %>" /></svg></a>
+          <a href="<%- sort === 'created' ? (d === 'asc' ? '/?sort=created' : '/?sort=created&dir=asc') : '/?sort=created&dir=desc' %>" title="<%= sort === 'created' ? (d === 'asc' ? 'Le plus ancien d\u2019abord — toucher pour inverser' : 'Le plus récent d\u2019abord — toucher pour inverser') : 'Le plus récent d\u2019abord' %>" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;padding:10px 12px;border-radius:8px;text-decoration:none;<%= sort === 'created' ? 'background:#dbeafe;color:#1d4ed8;' : 'color:#374151;' %>"><span style="flex:1;">Création</span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="<%= (sort === 'created' ? d : 'desc') === 'asc' ? 'M12 19V5M5 12l7-7 7 7' : 'M12 5v14M5 12l7 7 7-7' %>" /></svg></a>
+        </div>
         <% if (lists.length > 3) { %>
-          <input type="text" id="listSearch" placeholder="Rechercher une liste..."
-            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <button type="button" id="searchToggle" class="shrink-0 text-gray-400 hover:text-blue-500 transition-colors" style="padding:8px;" aria-label="Rechercher">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10 18a8 8 0 110-16 8 8 0 010 16z" />
+            </svg>
+          </button>
         <% } %>
-        <div class="space-y-2" id="listsContainer">
+      </div>
+        <% if (lists.length > 3) { %>
+          <div id="listSearchWrap" style="flex-shrink:0;display:none;padding:0 3px;margin-bottom:12px;">
+            <input type="text" id="listSearch" placeholder="Rechercher une liste..."
+              class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+        <% } %>
+        <div class="space-y-2" id="listsContainer" style="flex:1;min-height:0;overflow-y:auto;">
           <% lists.forEach(list => { %>
             <% const total = list.item_count || 0; const done = list.checked_count || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; %>
             <a href="/list/<%= list.id %>" data-name="<%= list.name.toLowerCase() %>"
@@ -72,7 +113,7 @@
             </a>
           <% }) %>
         </div>
-        <p id="noListResult" style="display:none" class="text-center text-gray-400 py-6 text-sm">Aucune liste trouvée.</p>
+        <p id="noListResult" style="display:none;flex-shrink:0;" class="text-center text-gray-400 py-6 text-sm">Aucune liste trouvée.</p>
       </div>
 
   </div>
@@ -95,16 +136,41 @@
       }
       input.addEventListener('input', hideBanner);
       if (!banner.classList.contains('hidden')) showBanner();
-      form.addEventListener('submit', async function(e) {
-        e.preventDefault();
+      var SHARE_TARGETS = <%- JSON.stringify(locals.shareTargets || []).replace(/</g, '\\u003c') %>;
+      var shareModal = document.getElementById('shareModal');
+      function closeShareModal() {
+        shareModal.style.display = 'none';
+        btn.disabled = false;
+      }
+      window.closeShareModal = closeShareModal;
+      function openShareModal(name) {
+        document.getElementById('shareModalName').textContent = name;
+        var box = document.getElementById('shareOptions');
+        box.innerHTML = '';
+        var opts = [{ value: '', label: 'Perso (juste moi)' }];
+        SHARE_TARGETS.forEach(function(t) { opts.push({ value: t.value, label: 'Partagée — ' + t.label }); });
+        opts.forEach(function(o) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-colors ' + (o.value ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-gray-100 text-gray-800 hover:bg-gray-200');
+          b.textContent = o.label;
+          b.addEventListener('click', function() {
+            shareModal.style.display = 'none';
+            doCreate(o.value);
+          });
+          box.appendChild(b);
+        });
+        shareModal.style.display = 'flex';
+      }
+      async function doCreate(share) {
         var name = input.value.trim();
-        if (!name) return;
+        if (!name) { btn.disabled = false; return; }
         btn.disabled = true;
         try {
           const res = await fetch('/lists', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-            body: new URLSearchParams({ name })
+            body: new URLSearchParams({ name, share: share || '' })
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.id) {
@@ -120,6 +186,13 @@
           }
           form.submit();
         } catch { form.submit(); }
+      }
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var name = input.value.trim();
+        if (!name) return;
+        if (!SHARE_TARGETS.length) { doCreate(''); return; }
+        openShareModal(name);
       });
     })();
     (function() {
@@ -134,6 +207,37 @@
             if (match) shown++;
           });
           document.getElementById('noListResult').style.display = shown === 0 ? '' : 'none';
+        });
+        var toggle = document.getElementById('searchToggle');
+        if (toggle) {
+          toggle.addEventListener('click', function() {
+            var wrap = document.getElementById('listSearchWrap');
+            var open = wrap.style.display === 'none';
+            wrap.style.display = open ? '' : 'none';
+            if (open) { search.focus(); }
+            else { search.value = ''; search.dispatchEvent(new Event('input')); }
+          });
+        }
+      }
+      var sortToggle = document.getElementById('sortToggle');
+      var sortMenu = document.getElementById('sortMenu');
+      if (sortToggle && sortMenu) {
+        sortToggle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          sortMenu.style.display = sortMenu.style.display === 'block' ? 'none' : 'block';
+        });
+        var onDocClick = function(e) {
+          if (sortMenu.style.display === 'block' && !sortMenu.contains(e.target)) sortMenu.style.display = 'none';
+        };
+        var onEsc = function(e) {
+          if (e.key === 'Escape') sortMenu.style.display = 'none';
+        };
+        document.addEventListener('click', onDocClick);
+        document.addEventListener('keydown', onEsc);
+        window.__pageCleanup = window.__pageCleanup || [];
+        window.__pageCleanup.push(function() {
+          document.removeEventListener('click', onDocClick);
+          document.removeEventListener('keydown', onEsc);
         });
       }
     })();
@@ -176,7 +280,7 @@
       }
       async function fetchLists() {
         try {
-          const res = await fetch('/api/lists');
+          const res = await fetch('/api/lists' + window.location.search);
           if (res.ok) renderLists(await res.json());
           if (window.__spaForget) window.__spaForget('/');
         } catch {}

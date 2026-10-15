@@ -2,9 +2,10 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Famille - ShopList</title>
   <link rel="stylesheet" href="/css/main.css">
+  <style>*,*::before,*::after{box-sizing:border-box;}</style>
   <link rel="manifest" href="/manifest.json?v=<%= locals.version %>">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <meta name="mobile-web-app-capable" content="yes">
@@ -20,7 +21,9 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
       </a>
-      <h1 id="familleTitle" class="text-xl font-bold text-gray-800 truncate">Famille (<span id="familleCount"><%= members.length %></span>)</h1>
+      <% var isMember = (locals.familiesOf || []).length > 0; %>
+      <% var showOwn = !isMember || members.length > 0; %>
+      <h1 id="familleTitle" class="text-xl font-bold text-gray-800 truncate"><%= showOwn ? 'Ma famille' : 'Famille' %> (<span id="familleCount"><%= showOwn ? members.length : familiesOf.length %></span>)</h1>
     </div>
 
     <% if (locals.error) { %>
@@ -30,8 +33,34 @@
       <p class="bg-green-100 text-gray-800 text-sm rounded-xl px-4 py-3 mb-4"><%= success %></p>
     <% } %>
 
-    <p class="text-xs text-gray-400 mb-4">Les membres de ta famille sont ajoutés automatiquement à chaque liste que tu crées. Touche la pastille pour choisir : <b>Éditeur</b> ou <b>Lecteur</b>.</p>
-
+    <% if (!showOwn) { %>
+    <p class="text-xs text-gray-400 mb-4">Tu fais partie de la <b>famille de <%= familiesOf[0].ownerPseudo || familiesOf[0].ownerEmail %></b>. Ses listes partagées apparaissent automatiquement sur ton accueil.</p>
+    <% } %>
+    <% if (isMember) { %>
+    <div class="rounded-2xl border border-amber-200 px-4 py-3 mb-4" style="background:#fffbeb;">
+      <p class="text-xs text-gray-600">Tu fais partie d'une famille — tu ne peux pas inviter dans la tienne. Quitte-la ci-dessous pour créer la tienne.</p>
+    </div>
+    <div id="familiesOfSection" class="mb-4">
+      <h2 class="text-sm font-bold text-gray-800 mb-2">La famille dont je fais partie</h2>
+      <div id="familiesOfRows" class="space-y-2">
+        <% (locals.familiesOf || []).forEach(function(f) { %>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex items-center gap-3" data-owner="<%= f.ownerEmail %>">
+          <div class="shrink-0 flex items-center justify-center font-bold" style="width:40px;height:40px;border-radius:9999px;background:#f3f4f6;color:#4b5563;"><%= ((f.ownerPseudo || f.ownerEmail)[0] || '?').toUpperCase() %></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-800 truncate">Famille de <%= f.ownerPseudo || f.ownerEmail %></p>
+            <p class="text-xs text-gray-400 truncate"><%= f.ownerEmail %></p>
+          </div>
+          <div class="flex flex-col items-end gap-1 shrink-0">
+            <span style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:9999px;<%= f.canEdit ? 'background:#dbeafe;color:#1d4ed8;' : 'background:#f3f4f6;color:#6b7280;' %>"><%= f.canEdit ? 'Éditeur' : 'Lecteur' %></span>
+            <button type="button" class="leaveBtn text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1">Quitter</button>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+    <% } %>
+    <% if (showOwn) { %>
+    <p class="text-xs text-gray-400 mb-4">Les membres de ta famille sont ajoutés automatiquement à chaque liste que tu crées. Touche la pastille pour choisir : <b>Éditeur</b> ou <b>Lecteur</b>. Chacun ne peut être que dans une seule famille.</p>
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
       <p class="text-xs text-gray-400 mb-2">Lien d'invitation — valide 30 min, usage unique</p>
       <div id="inviteBox">
@@ -65,7 +94,9 @@
       </form>
       <p id="addMsg" class="text-xs mt-2 hidden"></p>
     </div>
+    <% } %>
 
+    <% if (showOwn) { %>
     <div id="memberRows" class="space-y-2">
       <% members.forEach(function(m) { %>
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex items-center gap-3" data-email="<%= m.email %>">
@@ -82,25 +113,8 @@
         </div>
       <% }); %>
     </div>
-    <p id="emptyState" class="text-center text-sm text-gray-400 mt-6 <%= members.length ? 'hidden' : '' %>">Ta famille est vide pour l'instant.</p>
-
-    <h2 class="text-sm font-bold text-gray-800 mt-8 mb-2">Familles dont je fais partie (<%= (locals.familiesOf || []).length %>)</h2>
-    <div id="familiesOfRows" class="space-y-2">
-      <% (locals.familiesOf || []).forEach(function(f) { %>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex items-center gap-3" data-owner="<%= f.ownerEmail %>">
-          <div class="shrink-0 flex items-center justify-center font-bold" style="width:40px;height:40px;border-radius:9999px;background:#f3f4f6;color:#4b5563;"><%= ((f.ownerPseudo || f.ownerEmail)[0] || '?').toUpperCase() %></div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-800 truncate">Famille de <%= f.ownerPseudo || f.ownerEmail %></p>
-            <p class="text-xs text-gray-400 truncate"><%= f.ownerEmail %></p>
-          </div>
-          <div class="flex flex-col items-end gap-1 shrink-0">
-            <span style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:9999px;<%= f.canEdit ? 'background:#dbeafe;color:#1d4ed8;' : 'background:#f3f4f6;color:#6b7280;' %>"><%= f.canEdit ? 'Éditeur' : 'Lecteur' %></span>
-            <button type="button" class="leaveBtn text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1">Quitter</button>
-          </div>
-        </div>
-      <% }); %>
-    </div>
-    <p id="familiesOfEmpty" class="text-center text-sm text-gray-400 mt-4 <%= (locals.familiesOf || []).length ? 'hidden' : '' %>">Tu ne fais partie d'aucune autre famille.</p>
+    <p id="emptyState" class="text-center text-sm text-gray-400 mt-6 <%= members.length ? 'hidden' : '' %>">Ta famille est vide pour l'instant. Ajoute des membres par email ou partage ton lien d'invitation.</p>
+    <% } %>
   </div>
 
   <script>
@@ -206,7 +220,8 @@
       document.getElementById('familleCount').textContent = document.querySelectorAll('#memberRows > div').length;
     }
 
-    document.getElementById('addForm').addEventListener('submit', async function(e) {
+    var addFormEl = document.getElementById('addForm');
+    if (addFormEl) addFormEl.addEventListener('submit', async function(e) {
       e.preventDefault();
       const msg = document.getElementById('addMsg');
       const input = document.getElementById('addInput');
@@ -266,8 +281,7 @@
           body: new URLSearchParams({ owner: row.dataset.owner })
         });
         if (res.ok) {
-          row.remove();
-          if (!document.querySelectorAll('#familiesOfRows > div').length) document.getElementById('familiesOfEmpty').classList.remove('hidden');
+          location.reload();
         }
       } catch {}
     }

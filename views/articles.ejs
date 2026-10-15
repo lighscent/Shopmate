@@ -2,9 +2,10 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Mes articles - ShopList</title>
   <link rel="stylesheet" href="/css/main.css">
+  <style>*,*::before,*::after{box-sizing:border-box;}</style>
   <link rel="manifest" href="/manifest.json?v=<%= locals.version %>">
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <meta name="mobile-web-app-capable" content="yes">
@@ -23,7 +24,7 @@
       <h1 class="text-xl font-bold text-gray-800 truncate">Mes articles (<span id="artCount"><%= items.length %></span>)</h1>
     </div>
 
-    <p class="text-xs text-gray-400 mb-4">Ajoute tes articles avec leur prix. Les modifications sont enregistrées automatiquement, corbeille pour supprimer.</p>
+    <p class="text-xs text-gray-400 mb-3">Ajoute tes articles avec leur prix. Les modifications sont enregistrées automatiquement, corbeille pour supprimer.</p>
 
     <form id="addArtForm" action="/articles/add" method="POST" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 mb-4">
       <div class="flex gap-2">

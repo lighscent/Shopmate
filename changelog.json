@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.9.0",
+    "date": "15/10/2026",
+    "items": [
+      "Une popup présente les nouveautés à chaque mise à jour",
+      "Tri des listes : par modification ou création, du plus récent au plus ancien ou l'inverse"
+    ]
+  },
+  {
+    "version": "1.8.0",
+    "date": "03/10/2026",
+    "items": [
+      "Correction de la barre de navigation masquée sur iPhone",
+      "Création de liste : une fenêtre propose liste Perso ou Partagée avec la famille",
+      "Familles exclusives : on a soit sa propre famille, soit on est dans celle de quelqu'un"
+    ]
+  },
+  {
     "version": "1.7.0",
     "date": "03/10/2026",
     "items": [
