@@ -4,7 +4,12 @@
     "date": "15/10/2026",
     "items": [
       "Une popup présente les nouveautés à chaque mise à jour",
-      "Tri des listes : par modification ou création, du plus récent au plus ancien ou l'inverse"
+      "Tri des listes : par modification ou création, du plus récent au plus ancien ou l'inverse",
+      "Calculatrice en magasin : ticket lié à une liste, prix du catalogue modifiables, historique des sessions",
+      "Calculette classique avec pavé tactile (remplace le ticket), historique des sessions conservé",
+      "Page Listes dédiée (6e onglet) : l'accueil redevient une vraie page d'accueil avec résumé et raccourcis",
+      "Listes déroulantes personnalisées partout, plus de sélecteur natif",
+      "Création de liste en un appui (nom automatique Liste N, renommable ensuite via le crayon)"
     ]
   },
   {

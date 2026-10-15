@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Calculatrice - ShopList</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <style>*,*::before,*::after{box-sizing:border-box;}</style>
+  <link rel="manifest" href="/manifest.json?v=<%= locals.version %>">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <meta name="theme-color" content="#3b82f6">
+</head>
+<body class="bg-gray-50 min-h-dvh">
+  <div class="max-w-sm mx-auto px-4 py-6" style="padding-bottom:110px;">
+    <h1 class="text-xl font-bold text-gray-800 mb-4">Calculatrice</h1>
+
+    <div class="flex gap-2 mb-4">
+      <button id="tabTicket" type="button" class="flex-1 text-center text-sm font-medium py-2 rounded-xl transition-colors bg-blue-500 text-white">Calculette</button>
+      <button id="tabHistory" type="button" class="flex-1 text-center text-sm font-medium py-2 rounded-xl transition-colors bg-white text-gray-500 border border-gray-200">Historique (<%= sessions.length %>)</button>
+    </div>
+
+    <div id="ticketPane">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-3">
+        <p id="calcExpr" class="text-right text-sm text-gray-400 truncate" style="min-height:20px;"></p>
+        <p id="calcDisplay" class="text-right font-bold text-gray-800 truncate" style="font-size:40px;line-height:1.2;">0</p>
+      </div>
+      <div id="calcPad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+    </div>
+
+    <div id="historyPane" style="display:none;">
+      <div id="historyRows" class="space-y-2">
+        <% sessions.forEach(function(s) { %>
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3" data-session="<%= s.id %>">
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-sm font-medium text-gray-800 truncate"><%= s.listName || 'Sans liste' %></p>
+              <p class="text-sm font-bold text-gray-800 shrink-0 ml-2"><%= Number(s.total).toFixed(2).replace('.', ',') %> €</p>
+            </div>
+            <p class="text-xs text-gray-400 mb-2"><%
+              var sd = new Date(s.createdAt + 'Z');
+              var pad = function(n) { return String(n).padStart(2, '0'); };
+            %><%= pad(sd.getDate()) %>/<%= pad(sd.getMonth()+1) %>/<%= sd.getFullYear() %> à <%= pad(sd.getHours()) %>:<%= pad(sd.getMinutes()) %></p>
+            <ul class="text-xs text-gray-600 mb-2" style="list-style:disc;padding-left:20px;">
+              <% s.lines.forEach(function(l) { %>
+                <li><%= l.qty %> × <%= l.name %> — <%= Number(l.qty * l.price).toFixed(2).replace('.', ',') %> €</li>
+              <% }); %>
+            </ul>
+            <button type="button" onclick="delSession('<%= s.id %>', this)" class="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1">Supprimer</button>
+          </div>
+        <% }); %>
+      </div>
+      <% if (!sessions.length) { %>
+        <p id="historyEmpty" class="text-center text-sm text-gray-400 mt-6">Aucune session pour l'instant.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <%- include('partials/bottom-nav', { active: 'calc' }) %>
+
+  <script>
+    var calcCur = '0';
+    var calcPrev = null;
+    var calcOp = null;
+    var calcFresh = true;
+
+    function calcShow() {
+      document.getElementById('calcDisplay').textContent = calcCur.replace('.', ',');
+      var e = document.getElementById('calcExpr');
+      e.textContent = (calcPrev === null || calcOp === null) ? '' : (String(calcPrev).replace('.', ',') + ' ' + calcOp);
+    }
+    function calcNum(v) {
+      var n = parseFloat(v);
+      return Math.round(n * 1e10) / 1e10;
+    }
+    function calcApply(a, b, op) {
+      if (op === '+') return a + b;
+      if (op === '−') return a - b;
+      if (op === '×') return a * b;
+      if (op === '÷') return b === 0 ? NaN : a / b;
+      return b;
+    }
+    function calcReset() {
+      calcCur = '0'; calcPrev = null; calcOp = null; calcFresh = true;
+      calcShow();
+    }
+    function calcDigit(d) {
+      if (calcCur === 'Erreur') calcReset();
+      if (calcFresh) { calcCur = d === '.' ? '0.' : d; calcFresh = false; }
+      else {
+        if (d === '.' && calcCur.indexOf('.') !== -1) return;
+        if (calcCur.replace(/[^0-9]/g, '').length >= 12) return;
+        calcCur = (calcCur === '0' && d !== '.') ? d : calcCur + d;
+      }
+      calcShow();
+    }
+    function calcSetOp(op) {
+      var v = parseFloat(calcCur);
+      if (isNaN(v)) { calcReset(); return; }
+      if (calcPrev !== null && calcOp !== null && !calcFresh) v = calcNum(calcApply(calcPrev, v, calcOp));
+      if (isNaN(v)) { calcCur = 'Erreur'; calcPrev = null; calcOp = null; calcFresh = true; }
+      else { calcPrev = v; calcOp = op; calcFresh = true; calcCur = String(v); }
+      calcShow();
+    }
+    function calcEq() {
+      if (calcPrev === null || calcOp === null) return;
+      var r = calcNum(calcApply(calcPrev, parseFloat(calcCur), calcOp));
+      calcCur = isNaN(r) ? 'Erreur' : String(r);
+      calcPrev = null; calcOp = null; calcFresh = true;
+      calcShow();
+    }
+    function calcPress(k) {
+      if ((k >= '0' && k <= '9') || k === '.') calcDigit(k);
+      else if (k === 'C') calcReset();
+      else if (k === 'back') {
+        if (!calcFresh && calcCur !== 'Erreur') {
+          calcCur = calcCur.length > 1 ? calcCur.slice(0, -1) : '0';
+          if (calcCur === '' || calcCur === '-') calcCur = '0';
+          calcShow();
+        }
+      }
+      else if (k === '%') {
+        var v = parseFloat(calcCur);
+        if (!isNaN(v)) { calcCur = String(calcNum(v / 100)); calcShow(); }
+      }
+      else if (k === '=') calcEq();
+      else calcSetOp(k);
+    }
+    (function() {
+      var layout = ['C', 'back', '%', '÷', '7', '8', '9', '×', '4', '5', '6', '−', '1', '2', '3', '+', '0', '.', '='];
+      var labels = { back: '⌫' };
+      var pad = document.getElementById('calcPad');
+      if (!pad) return;
+      layout.forEach(function(k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = labels[k] || k;
+        var style = 'min-height:64px;font-size:22px;font-weight:700;border-radius:16px;';
+        if (k === '=') style += 'background:#3b82f6;color:#fff;';
+        else if (k === '÷' || k === '×' || k === '−' || k === '+') style += 'background:#dbeafe;color:#1d4ed8;';
+        else if (k === 'C') style += 'background:#fee2e2;color:#b91c1c;';
+        else style += 'background:#fff;color:#1f2937;border:1px solid #e5e7eb;';
+        if (k === '0') style += 'grid-column:span 2;';
+        b.style.cssText = style;
+        b.addEventListener('click', function() { calcPress(k); });
+        pad.appendChild(b);
+      });
+      calcShow();
+    })();
+
+    async function delSession(id, btn) {
+      var ok = window.confirmPopup
+        ? await window.confirmPopup('Supprimer cette session ?')
+        : window.confirm('Supprimer cette session ?');
+      if (!ok) return;
+      try {
+        var res = await fetch('/calculatrice/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ id: id })
+        });
+        if (res.ok) {
+          var row = btn.closest('[data-session]');
+          if (row) row.remove();
+        }
+      } catch (e) {}
+    }
+
+    function paintTabs(which) {      var on = 'flex-1 text-center text-sm font-medium py-2 rounded-xl transition-colors bg-blue-500 text-white';
+      var off = 'flex-1 text-center text-sm font-medium py-2 rounded-xl transition-colors bg-white text-gray-500 border border-gray-200';
+      document.getElementById('tabTicket').className = which === 't' ? on : off;
+      document.getElementById('tabHistory').className = which === 'h' ? on : off;
+      document.getElementById('ticketPane').style.display = which === 't' ? '' : 'none';
+      document.getElementById('historyPane').style.display = which === 'h' ? '' : 'none';
+    }
+    document.getElementById('tabTicket').onclick = function() { paintTabs('t'); };
+    document.getElementById('tabHistory').onclick = function() { paintTabs('h'); };
+  </script>
+</body>
+</html>

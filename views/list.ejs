@@ -16,7 +16,7 @@
 <body class="bg-gray-50 min-h-dvh">
   <div class="max-w-sm mx-auto px-4 py-6" style="padding-bottom:110px;">
     <div class="flex items-center gap-2 mb-4" style="position:sticky;top:0;z-index:30;background:#f9fafb;padding:12px 0;">
-      <a href="/" aria-label="Retour" class="shrink-0 text-gray-400 hover:text-gray-600 transition-colors p-2">
+      <a href="/listes" aria-label="Retour" class="shrink-0 text-gray-400 hover:text-gray-600 transition-colors p-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
@@ -32,6 +32,14 @@
           Modifiée le <%= formatted %>
         </p>
       </div>
+      <% if (canEdit) { %>
+        <button type="button" id="renameBtn" title="Renommer" aria-label="Renommer"
+          class="shrink-0 text-gray-400 hover:text-gray-600 transition-colors p-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+          </svg>
+        </button>
+      <% } %>
       <a href="/list/<%= list.id %>/members" title="Membres" aria-label="Membres"
         class="shrink-0 text-gray-400 hover:text-gray-600 transition-colors p-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -173,7 +181,7 @@
       ws.onopen = () => { wsRetry = 0; ws.send(JSON.stringify({ action: 'join', listId })); refreshList(); };
       ws.onmessage = (e) => { try {
         const d = JSON.parse(e.data);
-        if (d.type === 'list-deleted') { if (window.goPage) window.goPage('/'); else window.location.href = '/'; return; }
+        if (d.type === 'list-deleted') { if (window.goPage) window.goPage('/listes'); else window.location.href = '/listes'; return; }
         if (d.type === 'update') refreshList();
         if (d.type === 'item-added' && d.item && d.item.addedBy !== defaultName) { showToast(d.item.addedBy + ' a ajoute ' + d.item.name); refreshList(); }
       } catch {} };
@@ -181,6 +189,50 @@
       ws.onerror = () => { try { ws.close(); } catch {} };
     }
     connectWs();
+    (function() {
+      var btn = document.getElementById('renameBtn');
+      if (!btn || !CAN_EDIT) return;
+      var h1 = btn.closest('.flex').querySelector('h1');
+      btn.addEventListener('click', function() {
+        if (document.getElementById('renameInput')) return;
+        var old = h1.textContent;
+        var input = document.createElement('input');
+        input.id = 'renameInput';
+        input.type = 'text';
+        input.value = old;
+        input.maxLength = 60;
+        input.className = 'w-full px-2 py-1 border border-blue-500 rounded-lg text-2xl font-bold text-gray-800 focus:outline-none';
+        h1.replaceWith(input);
+        input.focus();
+        input.select();
+        var done = false;
+        async function save() {
+          if (done) return; done = true;
+          var name = input.value.trim();
+          if (!name || name === old) { input.replaceWith(h1); return; }
+          try {
+            const res = await fetch('/api/list/' + listId + '/rename', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.name) {
+              h1.textContent = data.name;
+              document.title = data.name + ' - ShopList';
+              try { if (window.__spaForget) window.__spaForget('/'); } catch (e) {}
+            }
+          } catch {}
+          input.replaceWith(h1);
+        }
+        function cancel() { done = true; input.replaceWith(h1); }
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') save();
+          else if (e.key === 'Escape') cancel();
+        });
+        input.addEventListener('blur', save);
+      });
+    })();
     function fmtDate(iso) {
       const d = new Date(iso + 'Z');
       const pad = n => String(n).padStart(2, '0');
@@ -359,13 +411,14 @@
       const ok = await showConfirm('Supprimer cette liste definitivement ?');
       if (!ok) return;
       await fetch('/api/list/' + listId, { method: 'DELETE' });
-      if (window.goPage) window.goPage('/'); else window.location.href = '/';
+      if (window.goPage) window.goPage('/listes'); else window.location.href = '/listes';
     }
 
     refreshTimer = setInterval(refreshList, 30000);
   </script>
   <%- include('partials/install-banner') %>
-  <%- include('partials/bottom-nav', {active: 'home'}) %>
+  <%- include('partials/calc-modal') %>
+  <%- include('partials/bottom-nav', {active: 'listes'}) %>
   <script src="/js/app-version.js?v=<%= locals.version %>" defer></script>
 </body>
 </html>

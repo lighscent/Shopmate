@@ -16,26 +16,31 @@ function shareTargets(email) {
 }
 
 router.get('/', requireAuth, requirePseudo, (req, res) => {
+  const lists = store.getListsByUser(req.session.userEmail);
+  res.render('index', { lists, recent: lists.slice(0, 3) });
+});
+
+router.get('/listes', requireAuth, requirePseudo, (req, res) => {
   const sort = req.query.sort === 'created' ? 'created' : 'updated';
   const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
   const lists = store.getListsByUser(req.session.userEmail, sort, dir);
-  const recentItems = store.getRecentItems(req.session.userEmail);
-  res.render('index', { lists, recentItems, shareTargets: shareTargets(req.session.userEmail), sort, dir });
+  res.render('listes', { lists, shareTargets: shareTargets(req.session.userEmail), sort, dir });
 });
 
 router.post('/lists', requireAuth, requirePseudo, (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.redirect('/');
-  const wantsJson = req.get('X-Requested-With') === 'XMLHttpRequest' || (req.get('Accept') || '').includes('application/json');
-  const trimmed = name.trim();
+  const raw = (req.body.name || '').trim();
   const me = req.session.userEmail;
-  const duplicate = store.getListsByUser(me)
-    .find((l) => l.created_by === me && l.name.trim().toLowerCase() === trimmed.toLowerCase());
-  if (duplicate) {
-    if (wantsJson) return res.status(409).json({ error: 'duplicate', name: trimmed, existingId: duplicate.id });
-    const lists = store.getListsByUser(me);
-    const recentItems = store.getRecentItems(me);
-    return res.render('index', { lists, recentItems, shareTargets: shareTargets(me), sort: 'updated', dir: 'desc', warningName: trimmed, existingList: duplicate });
+  const wantsJson = req.get('X-Requested-With') === 'XMLHttpRequest' || (req.get('Accept') || '').includes('application/json');
+  // nom vide : génération auto "Liste N" (pas de contrôle doublon, unique par construction)
+  const trimmed = raw || store.nextGenericListName(me);
+  if (raw) {
+    const duplicate = store.getListsByUser(me)
+      .find((l) => l.created_by === me && l.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (duplicate) {
+      if (wantsJson) return res.status(409).json({ error: 'duplicate', name: trimmed, existingId: duplicate.id });
+      const lists = store.getListsByUser(me);
+      return res.render('listes', { lists, shareTargets: shareTargets(me), sort: 'updated', dir: 'desc', warningName: trimmed, existingList: duplicate });
+    }
   }
   // cible de partage validée : 'self' ou un owner dont je suis éditeur, sinon perso.
   // champ absent (vieux clients en cache) : undefined = ancien comportement auto-partage
@@ -82,7 +87,7 @@ router.get('/join/:token', (req, res) => {
 
 router.get('/list', (req, res) => {
   const { id } = req.query;
-  if (!id) return res.redirect('/');
+  if (!id) return res.redirect('/listes');
   res.redirect('/list/' + id);
 });
 

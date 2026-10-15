@@ -110,6 +110,23 @@ function createList(name, createdBy, shareWith) {
   return getList(id);
 }
 
+// Nom générique "Liste N" : max existant + 1 parmi les listes que je possède
+function nextGenericListName(email) {
+  let max = 0;
+  for (const l of getListsByUser(email)) {
+    if (l.created_by !== email) continue;
+    const m = /^Liste (\d+)$/i.exec((l.name || '').trim());
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return 'Liste ' + (max + 1);
+}
+
+function renameList(listId, name) {
+  run('UPDATE lists SET name = ? WHERE id = ?', name, listId);
+  touchList(listId);
+  return true;
+}
+
 function getListsByUser(email, sort, dir) {
   const col = sort === 'created' ? 'l.created_at' : 'l.updated_at';
   const d = dir === 'asc' ? 'ASC' : 'DESC';
@@ -358,4 +375,36 @@ function hasFamilyInvite(token) {
   return !!get('SELECT 1 AS ok FROM family_invites WHERE token = ?', token);
 }
 
-module.exports = { createList, getList, getListByShareToken, addItem, toggleItem, changeItemQuantity, removeItem, createUser, getUserByEmail, verifyUser, setPseudo, getListsByUser, deleteList, addMember, removeMember, getMembers, getRecentItems, getCatalog, searchCatalog, addArticle, setArticleInfo, renameArticle, deleteArticle, deleteUser, updatePassword, getPseudoChangeStatus, recordPseudoChange, clearCheckedItems, isListMember, canEditList, createListInvite, getValidListInvite, peekListInvite, consumeListInvite, getFamilyMembers, addFamilyMember, removeFamilyMember, setFamilyCanEdit, getFamiliesOf, leaveFamily, createFamilyInvite, getValidFamilyInvite, peekFamilyInvite, consumeFamilyInvite, hasFamilyInvite, PSEUDO_MAX_PER_WEEK, PSEUDO_MIN_GAP_MIN };
+module.exports = { createList, nextGenericListName, renameList, getList, getListByShareToken, addItem, toggleItem, changeItemQuantity, removeItem, createUser, getUserByEmail, verifyUser, setPseudo, getListsByUser, deleteList, addMember, removeMember, getMembers, getRecentItems, getCatalog, searchCatalog, addArticle, setArticleInfo, renameArticle, deleteArticle, deleteUser, updatePassword, getPseudoChangeStatus, recordPseudoChange, clearCheckedItems, isListMember, canEditList, createListInvite, getValidListInvite, peekListInvite, consumeListInvite, getFamilyMembers, addFamilyMember, removeFamilyMember, setFamilyCanEdit, getFamiliesOf, leaveFamily, createFamilyInvite, getValidFamilyInvite, peekFamilyInvite, consumeFamilyInvite, hasFamilyInvite, saveCalcSession, getCalcSessions, deleteCalcSession, PSEUDO_MAX_PER_WEEK, PSEUDO_MIN_GAP_MIN };
+
+// ---- calculatrice : ticket figé en sessions par liste ----
+function saveCalcSession(email, listId, lines) {
+  const clean = (lines || []).map(l => {
+    const p = parsePrice(l.price);
+    return {
+      name: String(l.name || '').trim().slice(0, 80),
+      qty: Math.max(1, Math.min(999, parseInt(l.qty, 10) || 1)),
+      price: p === undefined ? null : (p || 0)
+    };
+  }).filter(l => l.name && l.price !== null);
+  if (!clean.length) return null;
+  const total = Math.round(clean.reduce((s, l) => s + l.qty * l.price, 0) * 100) / 100;
+  const id = uid();
+  run('INSERT INTO calc_sessions (id, user_email, list_id, total) VALUES (?, ?, ?, ?)', id, email, listId || null, total);
+  const ins = db.prepare('INSERT INTO calc_lines (session_id, name, qty, price) VALUES (?, ?, ?, ?)');
+  for (const l of clean) ins.run(id, l.name, l.qty, l.price);
+  return { id, total };
+}
+
+function getCalcSessions(email) {
+  const sessions = all(`SELECT cs.id, cs.list_id AS listId, cs.total, cs.created_at AS createdAt, COALESCE(l.name, '') AS listName FROM calc_sessions cs LEFT JOIN lists l ON l.id = cs.list_id WHERE cs.user_email = ? ORDER BY cs.created_at DESC`, email);
+  const lines = db.prepare('SELECT session_id AS sid, name, qty, price FROM calc_lines WHERE session_id IN (SELECT id FROM calc_sessions WHERE user_email = ?)').all(email);
+  const byId = {};
+  for (const l of lines) (byId[l.sid] = byId[l.sid] || []).push(l);
+  return sessions.map(s => ({ ...s, lines: byId[s.id] || [] }));
+}
+
+function deleteCalcSession(email, id) {
+  run('DELETE FROM calc_lines WHERE session_id = ? AND session_id IN (SELECT id FROM calc_sessions WHERE id = ? AND user_email = ?)', id, id, email);
+  return run('DELETE FROM calc_sessions WHERE id = ? AND user_email = ?', id, email).changes > 0;
+}

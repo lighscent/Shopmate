@@ -1,0 +1,120 @@
+<button id="calcFab" type="button" title="Calculatrice" aria-label="Calculatrice"
+  style="position:fixed;right:16px;bottom:96px;z-index:40;width:56px;height:56px;border-radius:9999px;background:#3b82f6;color:#fff;font-size:26px;font-weight:700;box-shadow:0 8px 20px rgba(0,0,0,.25);">
+  €
+</button>
+<div id="calcModal" style="display:none;position:fixed;inset:0;z-index:60;">
+  <div id="calcModalBg" style="position:absolute;inset:0;background:rgba(0,0,0,.4);"></div>
+  <div style="position:absolute;left:12px;right:12px;bottom:24px;max-width:24rem;margin:0 auto;background:#fff;border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);">
+    <div class="flex items-center gap-2 mb-2">
+      <p class="flex-1 text-sm font-bold text-gray-800">Calculatrice</p>
+      <button id="calcModalClose" type="button" class="text-gray-400 p-1" aria-label="Fermer">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+      </button>
+    </div>
+    <div class="bg-gray-50 rounded-xl px-3 py-2 mb-2">
+      <p id="mCalcExpr" class="text-right text-sm text-gray-400 truncate" style="min-height:20px;"></p>
+      <p id="mCalcDisplay" class="text-right font-bold text-gray-800 truncate" style="font-size:36px;line-height:1.2;">0</p>
+    </div>
+    <div id="mCalcPad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+  </div>
+</div>
+<script>
+(function() {
+  var cur = '0', prev = null, op = null, fresh = true, built = false;
+  function show() {
+    document.getElementById('mCalcDisplay').textContent = cur.replace('.', ',');
+    var e = document.getElementById('mCalcExpr');
+    e.textContent = (prev === null || op === null) ? '' : (String(prev).replace('.', ',') + ' ' + op);
+  }
+  function num(v) {
+    var n = parseFloat(v);
+    return Math.round(n * 1e10) / 1e10;
+  }
+  function apply(a, b, o) {
+    if (o === '+') return a + b;
+    if (o === '−') return a - b;
+    if (o === '×') return a * b;
+    if (o === '÷') return b === 0 ? NaN : a / b;
+    return b;
+  }
+  function reset() { cur = '0'; prev = null; op = null; fresh = true; show(); }
+  function digit(d) {
+    if (cur === 'Erreur') reset();
+    if (fresh) { cur = d === '.' ? '0.' : d; fresh = false; }
+    else {
+      if (d === '.' && cur.indexOf('.') !== -1) return;
+      if (cur.replace(/[^0-9]/g, '').length >= 12) return;
+      cur = (cur === '0' && d !== '.') ? d : cur + d;
+    }
+    show();
+  }
+  function setOp(o) {
+    var v = parseFloat(cur);
+    if (isNaN(v)) { reset(); return; }
+    if (prev !== null && op !== null && !fresh) v = num(apply(prev, v, op));
+    if (isNaN(v)) { cur = 'Erreur'; prev = null; op = null; fresh = true; }
+    else { prev = v; op = o; fresh = true; cur = String(v); }
+    show();
+  }
+  function eq() {
+    if (prev === null || op === null) return;
+    var r = num(apply(prev, parseFloat(cur), op));
+    cur = isNaN(r) ? 'Erreur' : String(r);
+    prev = null; op = null; fresh = true;
+    show();
+  }
+  function press(k) {
+    if ((k >= '0' && k <= '9') || k === '.') digit(k);
+    else if (k === 'C') reset();
+    else if (k === 'back') {
+      if (!fresh && cur !== 'Erreur') {
+        cur = cur.length > 1 ? cur.slice(0, -1) : '0';
+        if (cur === '' || cur === '-') cur = '0';
+        show();
+      }
+    }
+    else if (k === '%') {
+      var v = parseFloat(cur);
+      if (!isNaN(v)) { cur = String(num(v / 100)); show(); }
+    }
+    else if (k === '=') eq();
+    else setOp(k);
+  }
+  function build() {
+    if (built) return;
+    built = true;
+    var layout = ['C', 'back', '%', '÷', '7', '8', '9', '×', '4', '5', '6', '−', '1', '2', '3', '+', '0', '.', '='];
+    var labels = { back: '⌫' };
+    var pad = document.getElementById('mCalcPad');
+    if (!pad) return;
+    layout.forEach(function(k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = labels[k] || k;
+      var style = 'min-height:60px;font-size:22px;font-weight:700;border-radius:16px;';
+      if (k === '=') style += 'background:#3b82f6;color:#fff;';
+      else if (k === '÷' || k === '×' || k === '−' || k === '+') style += 'background:#dbeafe;color:#1d4ed8;';
+      else if (k === 'C') style += 'background:#fee2e2;color:#b91c1c;';
+      else style += 'background:#fff;color:#1f2937;border:1px solid #e5e7eb;';
+      if (k === '0') style += 'grid-column:span 2;';
+      b.style.cssText = style;
+      b.addEventListener('click', function() { press(k); });
+      pad.appendChild(b);
+    });
+    show();
+  }
+  function open() {
+    build();
+    document.getElementById('calcModal').style.display = 'block';
+  }
+  function close() {
+    document.getElementById('calcModal').style.display = 'none';
+  }
+  document.getElementById('calcFab').addEventListener('click', open);
+  document.getElementById('calcModalClose').addEventListener('click', close);
+  document.getElementById('calcModalBg').addEventListener('click', close);
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key === 'Escape') close();
+  });
+})();
+</script>

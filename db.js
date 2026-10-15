@@ -106,6 +106,26 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS calc_sessions (
+    id TEXT PRIMARY KEY,
+    user_email TEXT NOT NULL,
+    list_id TEXT,
+    total REAL NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS calc_lines (
+    session_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    qty INTEGER NOT NULL DEFAULT 1,
+    price REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY (session_id) REFERENCES calc_sessions(id) ON DELETE CASCADE
+  )
+`);
+
 // NOTE: no DEFAULT on ADD COLUMN — SQLite refuses non-constant defaults
 // (e.g. CURRENT_TIMESTAMP) when the table already has rows (constant DEFAULT 1 is fine,
 // but plain column + backfill below keeps it uniform and risk-free)

@@ -94,6 +94,17 @@ router.post('/list/:id/invite', requireAuth, (req, res) => {
   res.json({ ok: true, token: store.createListInvite(req.params.id) });
 });
 
+// Renommer une liste (éditeurs uniquement)
+router.put('/list/:id/rename', requireAuth, requireCanEdit, (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (!name || name.length > 60) return res.status(400).json({ error: 'Nom invalide (1 à 60 caractères)' });
+  store.renameList(req.params.id, name);
+  ws.broadcast(req.params.id, { type: 'list-renamed', name });
+  const emails = [req.session.userEmail, ...store.getMembers(req.params.id).map((m) => m.email)];
+  ws.notifyUsers([...new Set(emails)], { type: 'lists-changed' });
+  res.json({ ok: true, name });
+});
+
 router.delete('/list/:id/members/:email', requireAuth, requireCanEdit, (req, res) => {
   const ok = store.removeMember(req.params.id, req.params.email);
   if (!ok) return res.status(403).json({ error: 'Action non autorisee' });
