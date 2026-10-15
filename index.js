@@ -102,6 +102,8 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+// Les parsers laissent req.body undefined si le Content-Type ne matche pas (POST vide, bot...) — évite les crashs sur `const {...} = req.body`
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 app.use(session({
   store: new SQLiteStore(),
   secret: process.env.SESSION_SECRET || 'shoplist-dev-secret',
