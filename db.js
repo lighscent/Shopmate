@@ -142,6 +142,8 @@ db.prepare("UPDATE lists SET share_token_created_at = CURRENT_TIMESTAMP WHERE sh
 try { db.exec("ALTER TABLE users ADD COLUMN pseudo TEXT DEFAULT ''"); } catch {}
 try { db.exec("ALTER TABLE lists ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP"); } catch {}
 try { db.exec("ALTER TABLE lists ADD COLUMN share_token TEXT"); } catch {}
+try { db.exec("ALTER TABLE lists ADD COLUMN archived INTEGER DEFAULT 0"); } catch {}
+db.prepare("UPDATE lists SET archived = 0 WHERE archived IS NULL").run();
 
 const SessionStore = require('express-session').Store;
 

@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.10.0",
+    "date": "26/10/2026",
+    "items": [
+      "Listes terminées : bouton vert dans le détail quand tout est coché, liste figée en lecture seule et réactivable à tout moment",
+      "Chevron et barre de progression en vert quand une liste est complète",
+      "Date affichée à côté du nom de chaque liste (Créé le / Modifié le selon le tri)"
+    ]
+  },
+  {
     "version": "1.9.0",
     "date": "15/10/2026",
     "items": [

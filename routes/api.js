@@ -6,9 +6,14 @@ const { requireAuth } = require('../middleware/auth');
 const router = Router();
 
 // Lecture seule : 403 sur toute modification si le membre est en droit "voir"
+// Les listes archivées sont figées : 403 sur toute modification sauf (dés)archivage
 function requireCanEdit(req, res, next) {
   if (!store.canEditList(req.params.id, req.session.userEmail)) {
     return res.status(403).json({ error: 'Lecture seule' });
+  }
+  const list = store.getList(req.params.id);
+  if (list && list.archived) {
+    return res.status(403).json({ error: 'Liste terminée' });
   }
   next();
 }
@@ -20,9 +25,33 @@ router.get('/list/:id', requireAuth, (req, res) => {
   res.json(list);
 });
 
-// Mes listes (pour le refresh temps réel de l'accueil)
+// Mes listes actives (pour le refresh temps réel de l'accueil)
 router.get('/lists', requireAuth, (req, res) => {
   res.json(store.getListsByUser(req.session.userEmail, req.query.sort === 'created' ? 'created' : 'updated', req.query.dir === 'asc' ? 'asc' : 'desc'));
+});
+
+// Mes listes archivées
+router.get('/lists/archived', requireAuth, (req, res) => {
+  res.json(store.getArchivedListsByUser(req.session.userEmail));
+});
+
+// Archiver / désarchiver une liste terminée (éditeurs uniquement, AJAX sans rechargement)
+router.post('/list/:id/archive', requireAuth, (req, res) => {
+  if (!store.getList(req.params.id)) return res.status(404).json({ error: 'Liste introuvable' });
+  if (!store.canEditList(req.params.id, req.session.userEmail)) return res.status(403).json({ error: 'Lecture seule' });
+  store.setListArchived(req.params.id, true);
+  const emails = [req.session.userEmail, ...store.getMembers(req.params.id).map((m) => m.email)];
+  ws.notifyUsers([...new Set(emails)], { type: 'lists-changed', action: 'archived', id: req.params.id });
+  res.json({ ok: true, archived: true });
+});
+
+router.post('/list/:id/unarchive', requireAuth, (req, res) => {
+  if (!store.getList(req.params.id)) return res.status(404).json({ error: 'Liste introuvable' });
+  if (!store.canEditList(req.params.id, req.session.userEmail)) return res.status(403).json({ error: 'Lecture seule' });
+  store.setListArchived(req.params.id, false);
+  const emails = [req.session.userEmail, ...store.getMembers(req.params.id).map((m) => m.email)];
+  ws.notifyUsers([...new Set(emails)], { type: 'lists-changed', action: 'unarchived', id: req.params.id });
+  res.json({ ok: true, archived: false });
 });
 
 // Recherche dans mon catalogue d'articles (autocomplete, min 2 lettres)

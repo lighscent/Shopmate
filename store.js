@@ -110,10 +110,10 @@ function createList(name, createdBy, shareWith) {
   return getList(id);
 }
 
-// Nom générique "Liste N" : max existant + 1 parmi les listes que je possède
+// Nom générique "Liste N" : max existant + 1 parmi les listes que je possède (archives incluses)
 function nextGenericListName(email) {
   let max = 0;
-  for (const l of getListsByUser(email)) {
+  for (const l of getListsByUser(email, null, null, true)) {
     if (l.created_by !== email) continue;
     const m = /^Liste (\d+)$/i.exec((l.name || '').trim());
     if (m) max = Math.max(max, parseInt(m[1], 10));
@@ -127,10 +127,22 @@ function renameList(listId, name) {
   return true;
 }
 
-function getListsByUser(email, sort, dir) {
+function getListsByUser(email, sort, dir, includeArchived) {
   const col = sort === 'created' ? 'l.created_at' : 'l.updated_at';
   const d = dir === 'asc' ? 'ASC' : 'DESC';
-  return all(`SELECT l.id, l.name, l.updated_at, l.created_by, COALESCE(MAX(lm.can_edit), 1) AS can_edit, (SELECT COUNT(*) FROM items WHERE list_id = l.id) AS item_count, (SELECT COUNT(*) FROM items WHERE list_id = l.id AND checked = 1) AS checked_count FROM lists l LEFT JOIN list_members lm ON lm.list_id = l.id WHERE l.created_by = ? OR lm.user_email = ? GROUP BY l.id ORDER BY ${col} ${d}`, email, email);
+  const archFilter = includeArchived ? '' : 'AND COALESCE(l.archived, 0) = 0';
+  return all(`SELECT l.id, l.name, l.created_at, l.updated_at, l.created_by, COALESCE(l.archived, 0) AS archived, COALESCE(MAX(lm.can_edit), 1) AS can_edit, (SELECT COUNT(*) FROM items WHERE list_id = l.id) AS item_count, (SELECT COUNT(*) FROM items WHERE list_id = l.id AND checked = 1) AS checked_count FROM lists l LEFT JOIN list_members lm ON lm.list_id = l.id WHERE (l.created_by = ? OR lm.user_email = ?) ${archFilter} GROUP BY l.id ORDER BY ${col} ${d}`, email, email);
+}
+
+function getArchivedListsByUser(email) {
+  return all(`SELECT l.id, l.name, l.created_at, l.updated_at, l.created_by, COALESCE(MAX(lm.can_edit), 1) AS can_edit, (SELECT COUNT(*) FROM items WHERE list_id = l.id) AS item_count, (SELECT COUNT(*) FROM items WHERE list_id = l.id AND checked = 1) AS checked_count FROM lists l LEFT JOIN list_members lm ON lm.list_id = l.id WHERE (l.created_by = ? OR lm.user_email = ?) AND COALESCE(l.archived, 0) = 1 GROUP BY l.id ORDER BY l.updated_at DESC`, email, email);
+}
+
+// Archive / désarchive (éditeurs uniquement, contrôlé côté routes)
+function setListArchived(listId, archived) {
+  run('UPDATE lists SET archived = ? WHERE id = ?', archived ? 1 : 0, listId);
+  touchList(listId);
+  return true;
 }
 
 function getList(id, sort) {
@@ -257,7 +269,7 @@ function getMembers(listId) {
 }
 
 function getRecentItems(email, limit = 15) {
-  return all(`SELECT i.id, i.name, i.quantity, i.added_by, i.created_at, l.name AS list_name, l.id AS list_id FROM items i JOIN lists l ON l.id = i.list_id LEFT JOIN list_members lm ON lm.list_id = l.id WHERE l.created_by = ? OR lm.user_email = ? ORDER BY i.created_at DESC LIMIT ?`, email, email, limit);
+  return all(`SELECT i.id, i.name, i.quantity, i.added_by, i.created_at, l.name AS list_name, l.id AS list_id FROM items i JOIN lists l ON l.id = i.list_id LEFT JOIN list_members lm ON lm.list_id = l.id WHERE (l.created_by = ? OR lm.user_email = ?) AND COALESCE(l.archived, 0) = 0 ORDER BY i.created_at DESC LIMIT ?`, email, email, limit);
 }
 
 // ---- catalogue articles (100% manuel ; rien n'est alimenté depuis les listes) ----
@@ -375,7 +387,7 @@ function hasFamilyInvite(token) {
   return !!get('SELECT 1 AS ok FROM family_invites WHERE token = ?', token);
 }
 
-module.exports = { createList, nextGenericListName, renameList, getList, getListByShareToken, addItem, toggleItem, changeItemQuantity, removeItem, createUser, getUserByEmail, verifyUser, setPseudo, getListsByUser, deleteList, addMember, removeMember, getMembers, getRecentItems, getCatalog, searchCatalog, addArticle, setArticleInfo, renameArticle, deleteArticle, deleteUser, updatePassword, getPseudoChangeStatus, recordPseudoChange, clearCheckedItems, isListMember, canEditList, createListInvite, getValidListInvite, peekListInvite, consumeListInvite, getFamilyMembers, addFamilyMember, removeFamilyMember, setFamilyCanEdit, getFamiliesOf, leaveFamily, createFamilyInvite, getValidFamilyInvite, peekFamilyInvite, consumeFamilyInvite, hasFamilyInvite, saveCalcSession, getCalcSessions, deleteCalcSession, PSEUDO_MAX_PER_WEEK, PSEUDO_MIN_GAP_MIN };
+module.exports = { createList, nextGenericListName, renameList, getList, getListByShareToken, addItem, toggleItem, changeItemQuantity, removeItem, createUser, getUserByEmail, verifyUser, setPseudo, getListsByUser, getArchivedListsByUser, setListArchived, deleteList, addMember, removeMember, getMembers, getRecentItems, getCatalog, searchCatalog, addArticle, setArticleInfo, renameArticle, deleteArticle, deleteUser, updatePassword, getPseudoChangeStatus, recordPseudoChange, clearCheckedItems, isListMember, canEditList, createListInvite, getValidListInvite, peekListInvite, consumeListInvite, getFamilyMembers, addFamilyMember, removeFamilyMember, setFamilyCanEdit, getFamiliesOf, leaveFamily, createFamilyInvite, getValidFamilyInvite, peekFamilyInvite, consumeFamilyInvite, hasFamilyInvite, saveCalcSession, getCalcSessions, deleteCalcSession, PSEUDO_MAX_PER_WEEK, PSEUDO_MIN_GAP_MIN };
 
 // ---- calculatrice : ticket figé en sessions par liste ----
 function saveCalcSession(email, listId, lines) {

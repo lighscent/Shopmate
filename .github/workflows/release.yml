@@ -1,0 +1,42 @@
+name: Auto release
+
+# Quand la version change dans package.json (avec son entrée changelog.json),
+# publie automatiquement une GitHub Release vX.Y.Z avec les nouveautés en notes.
+on:
+  push:
+    branches: [master]
+    paths:
+      - package.json
+      - changelog.json
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release notes
+        id: notes
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          node -e "
+            const { version } = require('./package.json');
+            const log = require('./changelog.json');
+            const e = log.find((x) => x.version === version);
+            if (!e) { console.error('no changelog.json entry for ' + version); process.exit(1); }
+            require('fs').writeFileSync('release-notes.md', '## ' + version + ' (' + e.date + ')\n\n' + e.items.map((i) => '- ' + i).join('\n') + '\n');
+          "
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.notes.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
+          fi

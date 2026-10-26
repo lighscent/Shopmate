@@ -1,6 +1,6 @@
 {
   "name": "mylist",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Liste de courses collaborative temps reel",
   "main": "index.js",
   "scripts": {
@@ -16,8 +16,8 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
-    "dotenv": "^18.0.8",
-    "ejs": "^7.0.1",
+    "dotenv": "^18.0.9",
+    "ejs": "^7.0.2",
     "express": "^5.3.0",
     "express-session": "^1.19.0",
     "logxpert": "^2.2.1",

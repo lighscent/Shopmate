@@ -97,27 +97,48 @@
               class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
           </div>
         <% } %>
+        <% function fmtD(s) { try { var d = new Date(String(s || '').replace(' ', 'T') + 'Z'); if (isNaN(d.getTime())) return ''; var p = function(n) { return String(n).padStart(2, '0'); }; return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); } catch (e) { return ''; } } %>
         <div class="space-y-2" id="listsContainer" style="flex:1;min-height:0;overflow-y:auto;padding:0 4px;">
           <% lists.forEach(list => { %>
-            <% const total = list.item_count || 0; const done = list.checked_count || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; %>
+            <% const total = list.item_count || 0; const done = list.checked_count || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; const dateStr = fmtD(sort === 'created' ? list.created_at : list.updated_at); const dateLabel = (sort === 'created' ? 'Créé le ' : 'Modifié le ') + dateStr; %>
             <a href="/list/<%= list.id %>" data-name="<%= list.name.toLowerCase() %>"
               class="list-card flex items-center bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-blue-200 transition-colors">
               <div class="flex-1 min-w-0">
-                <p class="font-medium text-gray-800 text-sm truncate"><%= list.name %>
+                <p class="font-medium text-gray-800 text-sm truncate"><%= list.name %> <span class="text-xs font-normal text-gray-400">• <%= dateLabel %></span>
                   <% if (locals.user && list.created_by !== user.email && !list.can_edit) { %><span class="text-xs font-normal px-2 py-0.5 rounded-full" style="background:#f3f4f6;color:#6b7280;">Lecture seule</span><% } %>
                 </p>
                 <p class="text-xs text-gray-400 mt-1"><%= done %>/<%= total %> article(s) coché(s)</p>
                 <div style="height:6px;background:#f3f4f6;border-radius:9999px;margin-top:6px;overflow:hidden;">
-                  <div style="height:100%;width:<%= pct %>%;background:#3b82f6;border-radius:9999px;"></div>
+                  <div style="height:100%;width:<%= pct %>%;background:<%= (total > 0 && done === total) ? '#22c55e' : '#3b82f6' %>;border-radius:9999px;"></div>
                 </div>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300 shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:<%= (total > 0 && done === total && list.can_edit) ? '#22c55e' : '#d1d5db' %>;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </a>
           <% }) %>
         </div>
         <p id="noListResult" style="display:none;flex-shrink:0;" class="text-center text-gray-400 py-6 text-sm">Aucune liste trouvée.</p>
+      </div>
+
+      <% var arch = locals.archived || []; %>
+      <div id="archivedSection" class="<%= arch.length ? '' : 'hidden' %> mt-6" style="flex-shrink:0;">
+        <p class="text-sm font-bold text-gray-500 mb-2">Listes terminées (<span id="archivedCount"><%= arch.length %></span>)</p>
+        <div id="archivedContainer" class="space-y-2">
+          <% arch.forEach(function(list) { %>
+            <% const total = list.item_count || 0; const done = list.checked_count || 0; const dateStr = 'Modifié le ' + fmtD(list.updated_at); %>
+            <div class="flex items-center bg-gray-50 rounded-xl border border-gray-100 p-4 gap-2">
+              <a href="/list/<%= list.id %>" class="flex-1 min-w-0">
+                <p class="font-medium text-gray-500 text-sm truncate"><%= list.name %> <span class="text-xs font-normal text-gray-400">• <%= dateStr %></span></p>
+                <p class="text-xs text-gray-400 mt-1"><%= done %>/<%= total %> article(s) coché(s)</p>
+              </a>
+              <button type="button" onclick="unarchiveList('<%= list.id %>', this)" style="min-height:48px;"
+                class="shrink-0 text-xs font-medium text-blue-500 hover:text-blue-700 px-3 py-2 rounded-xl border border-blue-200 transition-colors">
+                Réactiver
+              </button>
+            </div>
+          <% }) %>
+        </div>
       </div>
 
   </div>
@@ -239,24 +260,72 @@
       }
     })();
     (function() {
+      window.unarchiveList = async function(id, btn) {
+        if (btn) btn.disabled = true;
+        try {
+          const res = await fetch('/api/list/' + id + '/unarchive', { method: 'POST' });
+          if (res.ok) { if (window.__fetchLists) window.__fetchLists(); fetchArchived(); }
+          else if (btn) btn.disabled = false;
+        } catch { if (btn) btn.disabled = false; }
+      };
+      function archHtml(l) {
+        var total = l.item_count || 0, done = l.checked_count || 0;
+        var dateStr = 'Modifi\u00e9 le ' + fmtD(l.updated_at);
+        return '<div class="flex items-center bg-gray-50 rounded-xl border border-gray-100 p-4 gap-2">'
+          + '<a href="/list/' + l.id + '" class="flex-1 min-w-0">'
+          + '<p class="font-medium text-gray-500 text-sm truncate">' + esc(l.name) + ' <span class="text-xs font-normal text-gray-400">• ' + dateStr + '</span></p>'
+          + '<p class="text-xs text-gray-400 mt-1">' + done + '/' + total + ' article(s) coché(s)</p></a>'
+          + '<button type="button" onclick="unarchiveList(\'' + l.id + '\', this)" style="min-height:48px;"'
+          + ' class="shrink-0 text-xs font-medium text-blue-500 hover:text-blue-700 px-3 py-2 rounded-xl border border-blue-200 transition-colors">Réactiver</button></div>';
+      }
+      function renderArchived(lists) {
+        var sec = document.getElementById('archivedSection');
+        if (!sec) return;
+        document.getElementById('archivedCount').textContent = lists.length;
+        if (!lists.length) { sec.classList.add('hidden'); return; }
+        sec.classList.remove('hidden');
+        document.getElementById('archivedContainer').innerHTML = lists.map(archHtml).join('');
+      }
+      async function fetchArchived() {
+        try {
+          const res = await fetch('/api/lists/archived');
+          if (res.ok) renderArchived(await res.json());
+        } catch {}
+      }
+      window.__fetchArchived = fetchArchived;
       function esc(s) {
         var d = document.createElement('div');
         d.textContent = s || '';
         return d.innerHTML;
       }
+      function fmtD(s) {
+        try {
+          var d = new Date(String(s || '').replace(' ', 'T') + 'Z');
+          if (isNaN(d.getTime())) return '';
+          var p = function(n) { return String(n).padStart(2, '0'); };
+          return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
+        } catch (e) { return ''; }
+      }
+      function sortBy() {
+        try { return new URLSearchParams(window.location.search).get('sort') === 'created' ? 'created' : 'updated'; }
+        catch (e) { return 'updated'; }
+      }
       function cardHtml(l) {
         var total = l.item_count || 0, done = l.checked_count || 0;
         var pct = total > 0 ? Math.round(done / total * 100) : 0;
+        var dateStr = fmtD(sortBy() === 'created' ? l.created_at : l.updated_at);
+        var dateLabel = (sortBy() === 'created' ? 'Cr\u00e9\u00e9 le ' : 'Modifi\u00e9 le ') + dateStr;
         var ro = l.can_edit ? '' : '<span class="text-xs font-normal px-2 py-0.5 rounded-full" style="background:#f3f4f6;color:#6b7280;">Lecture seule</span>';
+        var color = (total > 0 && done === total && l.can_edit) ? '#22c55e' : '#d1d5db';
         return '<a href="/list/' + l.id + '" data-name="' + esc((l.name || '').toLowerCase()) + '"'
           + ' class="list-card flex items-center bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-blue-200 transition-colors">'
           + '<div class="flex-1 min-w-0">'
-          + '<p class="font-medium text-gray-800 text-sm truncate">' + esc(l.name) + ' ' + ro + '</p>'
+          + '<p class="font-medium text-gray-800 text-sm truncate">' + esc(l.name) + ' <span class="text-xs font-normal text-gray-400">• ' + dateLabel + '</span> ' + ro + '</p>'
           + '<p class="text-xs text-gray-400 mt-1">' + done + '/' + total + ' article(s) coché(s)</p>'
           + '<div style="height:6px;background:#f3f4f6;border-radius:9999px;margin-top:6px;overflow:hidden;">'
-          + '<div style="height:100%;width:' + pct + '%;background:#3b82f6;border-radius:9999px;"></div>'
+          + '<div style="height:100%;width:' + pct + '%;background:' + (total > 0 && done === total ? '#22c55e' : '#3b82f6') + ';border-radius:9999px;"></div>'
           + '</div></div>'
-          + '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300 shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">'
+          + '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:' + color + ';">'
           + '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg></a>';
       }
       function renderLists(lists) {
@@ -280,8 +349,10 @@
           const res = await fetch('/api/lists' + window.location.search);
           if (res.ok) renderLists(await res.json());
           if (window.__spaForget) window.__spaForget('/listes');
+          if (window.__fetchArchived) window.__fetchArchived();
         } catch {}
       }
+      window.__fetchLists = fetchLists;
       var retry = 0, homeWs = null, homeDead = false, homeTimer = null;
       window.__pageCleanup = window.__pageCleanup || [];
       window.__pageCleanup.push(function() {

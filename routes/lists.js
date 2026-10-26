@@ -24,7 +24,8 @@ router.get('/listes', requireAuth, requirePseudo, (req, res) => {
   const sort = req.query.sort === 'created' ? 'created' : 'updated';
   const dir = req.query.dir === 'asc' ? 'asc' : 'desc';
   const lists = store.getListsByUser(req.session.userEmail, sort, dir);
-  res.render('listes', { lists, shareTargets: shareTargets(req.session.userEmail), sort, dir });
+  const archived = store.getArchivedListsByUser(req.session.userEmail);
+  res.render('listes', { lists, archived, shareTargets: shareTargets(req.session.userEmail), sort, dir });
 });
 
 router.post('/lists', requireAuth, requirePseudo, (req, res) => {
@@ -39,7 +40,7 @@ router.post('/lists', requireAuth, requirePseudo, (req, res) => {
     if (duplicate) {
       if (wantsJson) return res.status(409).json({ error: 'duplicate', name: trimmed, existingId: duplicate.id });
       const lists = store.getListsByUser(me);
-      return res.render('listes', { lists, shareTargets: shareTargets(me), sort: 'updated', dir: 'desc', warningName: trimmed, existingList: duplicate });
+      return res.render('listes', { lists, archived: store.getArchivedListsByUser(me), shareTargets: shareTargets(me), sort: 'updated', dir: 'desc', warningName: trimmed, existingList: duplicate });
     }
   }
   // cible de partage validée : 'self' ou un owner dont je suis éditeur, sinon perso.
@@ -95,7 +96,9 @@ router.get('/list/:id', requireAuth, (req, res) => {
   const sort = req.query.sort === 'updated' ? 'updated' : 'created';
   const list = store.getList(req.params.id, sort);
   if (!list) return res.status(404).render('404');
-  res.render('list', { list, user: res.locals.user, canEdit: store.canEditList(req.params.id, req.session.userEmail), sort });
+  const archived = !!list.archived;
+  const canArchive = store.canEditList(req.params.id, req.session.userEmail);
+  res.render('list', { list, user: res.locals.user, canEdit: canArchive && !archived, canArchive, archived, sort });
 });
 
 router.get('/list/:id/members', requireAuth, (req, res) => {

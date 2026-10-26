@@ -46,19 +46,21 @@
       Créer une nouvelle liste
     </a>
 
+    <% function fmtD(s) { try { var d = new Date(String(s || '').replace(' ', 'T') + 'Z'); if (isNaN(d.getTime())) return ''; var p = function(n) { return String(n).padStart(2, '0'); }; return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); } catch (e) { return ''; } } %>
     <% if (recent.length) { %>
       <div id="recentSection" class="mt-6">
         <p class="text-sm font-bold text-gray-800 mb-2">Listes récentes</p>
         <div id="recentLists" class="space-y-2">
           <% recent.forEach(function(l) { %>
             <% var pct = l.item_count ? Math.round(100 * (l.checked_count || 0) / l.item_count) : 0; %>
+            <% var isDone = (l.item_count || 0) > 0 && (l.checked_count || 0) === l.item_count && l.can_edit; %>
             <a href="/list/<%= l.id %>" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-800 truncate"><%= l.name %></p>
-                <div class="h-2 bg-gray-100 rounded-full mt-2 overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width:<%= pct %>%;"></div></div>
+                <p class="text-sm font-medium text-gray-800 truncate"><%= l.name %> <span class="text-xs font-normal text-gray-400">• Créé le <%= fmtD(l.created_at) %></span></p>
+                <div class="h-2 bg-gray-100 rounded-full mt-2 overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width:<%= pct %>%;background:<%= isDone ? '#22c55e' : '#3b82f6' %>;"></div></div>
                 <p class="text-xs text-gray-400 mt-1"><%= (l.checked_count || 0) %>/<%= (l.item_count || 0) %> articles</p>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:<%= isDone ? '#22c55e' : '#d1d5db' %>;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </a>
@@ -85,16 +87,25 @@
           return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
       }
+      function fmtD(s) {
+        try {
+          var d = new Date(String(s || '').replace(' ', 'T') + 'Z');
+          if (isNaN(d.getTime())) return '';
+          var p = function(n) { return String(n).padStart(2, '0'); };
+          return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
+        } catch (e) { return ''; }
+      }
       function recentCard(l) {
         var done = l.checked_count || 0, total = l.item_count || 0;
         var pct = total ? Math.round(100 * done / total) : 0;
+        var color = (total > 0 && done === total && l.can_edit) ? '#22c55e' : '#d1d5db';
         return '<a href="/list/' + l.id + '" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">'
           + '<div class="flex-1 min-w-0">'
-          + '<p class="text-sm font-medium text-gray-800 truncate">' + esc(l.name) + '</p>'
-          + '<div class="h-2 bg-gray-100 rounded-full mt-2 overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width:' + pct + '%;"></div></div>'
+          + '<p class="text-sm font-medium text-gray-800 truncate">' + esc(l.name) + ' <span class="text-xs font-normal text-gray-400">• Cr\u00e9\u00e9 le ' + fmtD(l.created_at) + '</span></p>'
+          + '<div class="h-2 bg-gray-100 rounded-full mt-2 overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width:' + pct + '%;background:' + (total > 0 && done === total ? '#22c55e' : '#3b82f6') + ';"></div></div>'
           + '<p class="text-xs text-gray-400 mt-1">' + done + '/' + total + ' articles</p>'
           + '</div>'
-          + '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">'
+          + '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:' + color + ';">'
           + '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg></a>';
       }
       async function refreshStats() {
